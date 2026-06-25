@@ -14,6 +14,10 @@ import BookingsTab from './components/BookingsTab';
 import UsersTab from './components/UsersTab';
 import CouponsTab from './components/CouponsTab';
 import ReviewsTab from './components/ReviewsTab';
+import { auth, db } from './firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { seedCollectionIfEmpty, saveDocument, deleteDocument } from './lib/firebaseSync';
 import {
   Sparkles,
   LayoutDashboard,
@@ -51,8 +55,9 @@ export default function App() {
   // Mobile UI controls
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Load state from local storage on mount
+  // Load state from local storage and sync with Firestore database in real-time
   useEffect(() => {
+    // 1. First load local storage cache instantly
     try {
       const savedClients = localStorage.getItem('auraluxe_clients');
       const savedBookings = localStorage.getItem('auraluxe_bookings');
@@ -62,40 +67,112 @@ export default function App() {
       const savedIsLoggedIn = localStorage.getItem('auraluxe_is_logged_in');
 
       if (savedClients) setClients(JSON.parse(savedClients));
-      else {
-        setClients(INITIAL_CLIENTS);
-        localStorage.setItem('auraluxe_clients', JSON.stringify(INITIAL_CLIENTS));
-      }
-
       if (savedBookings) setBookings(JSON.parse(savedBookings));
-      else {
-        setBookings(INITIAL_BOOKINGS);
-        localStorage.setItem('auraluxe_bookings', JSON.stringify(INITIAL_BOOKINGS));
-      }
-
       if (savedCoupons) setCoupons(JSON.parse(savedCoupons));
-      else {
-        setCoupons(INITIAL_COUPONS);
-        localStorage.setItem('auraluxe_coupons', JSON.stringify(INITIAL_COUPONS));
-      }
-
       if (savedReviews) setReviews(JSON.parse(savedReviews));
-      else {
-        setReviews(INITIAL_REVIEWS);
-        localStorage.setItem('auraluxe_reviews', JSON.stringify(INITIAL_REVIEWS));
-      }
-
       if (savedAdminName) setAdminName(savedAdminName);
       if (savedIsLoggedIn === 'true') setIsAdminLoggedIn(true);
-
     } catch (e) {
-      console.error('Error seeding initial luxury state', e);
-      // Fallbacks
-      setClients(INITIAL_CLIENTS);
-      setBookings(INITIAL_BOOKINGS);
-      setCoupons(INITIAL_COUPONS);
-      setReviews(INITIAL_REVIEWS);
+      console.error('Error loading cached local state', e);
     }
+
+    // Unsubscribe references
+    let unsubClients: (() => void) | null = null;
+    let unsubBookings: (() => void) | null = null;
+    let unsubCoupons: (() => void) | null = null;
+    let unsubReviews: (() => void) | null = null;
+
+    // 2. Fetch or seed live collections and listen to real-time changes
+    async function syncWithFirestore() {
+      try {
+        console.log("Synchronizing with remote Firebase Firestore...");
+        
+        await seedCollectionIfEmpty<Client>('clients', INITIAL_CLIENTS);
+        await seedCollectionIfEmpty<Booking>('bookings', INITIAL_BOOKINGS);
+        await seedCollectionIfEmpty<Coupon>('coupons', INITIAL_COUPONS);
+        await seedCollectionIfEmpty<Review>('reviews', INITIAL_REVIEWS);
+
+        unsubClients = onSnapshot(collection(db, 'clients'), (snapshot) => {
+          const items: Client[] = [];
+          snapshot.forEach((doc) => {
+            items.push({ id: doc.id, ...doc.data() } as Client);
+          });
+          setClients(items);
+          localStorage.setItem('auraluxe_clients', JSON.stringify(items));
+        });
+
+        unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
+          const items: Booking[] = [];
+          snapshot.forEach((doc) => {
+            items.push({ id: doc.id, ...doc.data() } as Booking);
+          });
+          setBookings(items);
+          localStorage.setItem('auraluxe_bookings', JSON.stringify(items));
+        });
+
+        unsubCoupons = onSnapshot(collection(db, 'coupons'), (snapshot) => {
+          const items: Coupon[] = [];
+          snapshot.forEach((doc) => {
+            items.push({ id: doc.id, ...doc.data() } as Coupon);
+          });
+          setCoupons(items);
+          localStorage.setItem('auraluxe_coupons', JSON.stringify(items));
+        });
+
+        unsubReviews = onSnapshot(collection(db, 'reviews'), (snapshot) => {
+          const items: Review[] = [];
+          snapshot.forEach((doc) => {
+            items.push({ id: doc.id, ...doc.data() } as Review);
+          });
+          setReviews(items);
+          localStorage.setItem('auraluxe_reviews', JSON.stringify(items));
+        });
+
+        console.log("Firebase Firestore real-time subscriptions active.");
+      } catch (err) {
+        console.warn("Could not synchronize with Firestore, running in local cached mode:", err);
+      }
+    }
+
+    syncWithFirestore();
+
+    return () => {
+      if (unsubClients) unsubClients();
+      if (unsubBookings) unsubBookings();
+      if (unsubCoupons) unsubCoupons();
+      if (unsubReviews) unsubReviews();
+    };
+  }, []);
+
+  // Listen to Firebase Auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const adminEmails = ["deepashika571@gmail.com"];
+      if (user) {
+        if (user.email && adminEmails.includes(user.email.toLowerCase().trim())) {
+          setIsAdminLoggedIn(true);
+          const name = user.displayName || user.email || 'Lady Genevieve';
+          setAdminName(name);
+          localStorage.setItem('auraluxe_admin_name', name);
+          localStorage.setItem('auraluxe_is_logged_in', 'true');
+        } else {
+          // If signed in but not authorized, deny access and sign out
+          signOut(auth);
+          setIsAdminLoggedIn(false);
+          localStorage.removeItem('auraluxe_is_logged_in');
+          // Dispatch custom event to communicate error to Login UI without alerts
+          window.dispatchEvent(new CustomEvent('auth_denied', { detail: user.email }));
+        }
+      } else {
+        // If they cleared local storage but were logged in, or manually logged out
+        const savedIsLoggedIn = localStorage.getItem('auraluxe_is_logged_in');
+        if (savedIsLoggedIn !== 'true') {
+          setIsAdminLoggedIn(false);
+        }
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Helper sync triggers
@@ -147,8 +224,14 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    setIsAdminLoggedIn(false);
-    localStorage.removeItem('auraluxe_is_logged_in');
+    signOut(auth).then(() => {
+      setIsAdminLoggedIn(false);
+      localStorage.removeItem('auraluxe_is_logged_in');
+    }).catch((err) => {
+      console.error("Error signing out:", err);
+      setIsAdminLoggedIn(false);
+      localStorage.removeItem('auraluxe_is_logged_in');
+    });
   };
 
   // --- Handlers for list manipulations ---
@@ -156,32 +239,44 @@ export default function App() {
   // Clients Add/Edit/Delete
   const handleAddClient = (newClient: Client) => {
     syncClients([newClient, ...clients]);
+    saveDocument('clients', newClient);
   };
 
   const handleUpdateClientTier = (id: string, tier: Client['tier']) => {
-    const updated = clients.map(c => c.id === id ? { ...c, tier } : c);
+    const updated = clients.map(c => {
+      if (c.id === id) {
+        const item = { ...c, tier };
+        saveDocument('clients', item);
+        return item;
+      }
+      return c;
+    });
     syncClients(updated);
   };
 
   const handleDeleteClient = (id: string) => {
     const updated = clients.filter(c => c.id !== id);
     syncClients(updated);
+    deleteDocument('clients', id);
   };
 
   // Bookings Add/Edit/Delete
   const handleAddBooking = (newBooking: Booking) => {
     const updatedBookings = [newBooking, ...bookings];
     syncBookings(updatedBookings);
+    saveDocument('bookings', newBooking);
 
     // If client is already in registry, increase total spent and total visits
     const updatedClients = clients.map(client => {
       if (client.name.toLowerCase() === newBooking.clientName.toLowerCase() || client.email.toLowerCase() === newBooking.clientEmail.toLowerCase()) {
         const isPaid = newBooking.paymentStatus === 'Paid';
-        return {
+        const item = {
           ...client,
           totalVisits: client.totalVisits + 1,
           totalSpent: isPaid ? client.totalSpent + newBooking.price : client.totalSpent
         };
+        saveDocument('clients', item);
+        return item;
       }
       return client;
     });
@@ -189,7 +284,14 @@ export default function App() {
   };
 
   const handleUpdateBookingStatus = (id: string, status: Booking['status']) => {
-    const updated = bookings.map(b => b.id === id ? { ...b, status } : b);
+    const updated = bookings.map(b => {
+      if (b.id === id) {
+        const item = { ...b, status };
+        saveDocument('bookings', item);
+        return item;
+      }
+      return b;
+    });
     syncBookings(updated);
   };
 
@@ -197,14 +299,23 @@ export default function App() {
     const bookingToUpdate = bookings.find(b => b.id === id);
     const prevPaymentStatus = bookingToUpdate?.paymentStatus;
     
-    const updatedBookings = bookings.map(b => b.id === id ? { ...b, paymentStatus } : b);
+    const updatedBookings = bookings.map(b => {
+      if (b.id === id) {
+        const item = { ...b, paymentStatus };
+        saveDocument('bookings', item);
+        return item;
+      }
+      return b;
+    });
     syncBookings(updatedBookings);
 
     // If marked Paid, increase client's total spent
     if (bookingToUpdate && paymentStatus === 'Paid' && prevPaymentStatus !== 'Paid') {
       const updatedClients = clients.map(client => {
         if (client.name.toLowerCase() === bookingToUpdate.clientName.toLowerCase()) {
-          return { ...client, totalSpent: client.totalSpent + bookingToUpdate.price };
+          const item = { ...client, totalSpent: client.totalSpent + bookingToUpdate.price };
+          saveDocument('clients', item);
+          return item;
         }
         return client;
       });
@@ -215,27 +326,44 @@ export default function App() {
   // Coupons Add/Edit/Delete
   const handleAddCoupon = (newCoupon: Coupon) => {
     syncCoupons([newCoupon, ...coupons]);
+    saveDocument('coupons', newCoupon);
   };
 
   const handleToggleCouponActive = (id: string) => {
-    const updated = coupons.map(c => c.id === id ? { ...c, isActive: !c.isActive } : c);
+    const updated = coupons.map(c => {
+      if (c.id === id) {
+        const item = { ...c, isActive: !c.isActive };
+        saveDocument('coupons', item);
+        return item;
+      }
+      return c;
+    });
     syncCoupons(updated);
   };
 
   const handleDeleteCoupon = (id: string) => {
     const updated = coupons.filter(c => c.id !== id);
     syncCoupons(updated);
+    deleteDocument('coupons', id);
   };
 
   // Reviews Add/Edit/Delete
   const handleApproveReview = (id: string) => {
-    const updated = reviews.map(r => r.id === id ? { ...r, status: 'Approved' as const } : r);
+    const updated = reviews.map(r => {
+      if (r.id === id) {
+        const item = { ...r, status: 'Approved' as const };
+        saveDocument('reviews', item);
+        return item;
+      }
+      return r;
+    });
     syncReviews(updated);
   };
 
   const handleDeleteReview = (id: string) => {
     const updated = reviews.filter(r => r.id !== id);
     syncReviews(updated);
+    deleteDocument('reviews', id);
   };
 
   // Render Login overlay if unauthenticated
@@ -402,9 +530,9 @@ export default function App() {
 
             {/* Studio active info */}
             <div className="hidden sm:block">
-              <span className="text-[9px] bg-emerald-950/40 text-emerald-400 border border-emerald-500/10 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-mono inline-flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Aura Luxe Salon Sanctuary Live
+              <span className="text-[9px] bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/25 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-mono inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-pulse" />
+                Firebase Connected: beauty-ae724
               </span>
             </div>
           </div>

@@ -344,47 +344,48 @@ export default function BookingsTab({
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1.5">
-                        {/* Quick state change button triggers */}
-                        {booking.status === 'Pending' && (
-                          <button
-                            onClick={() => onUpdateBookingStatus(booking.id, 'Confirmed')}
-                            title="Confirm Booking"
-                            className="p-1.5 bg-emerald-950/40 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600 hover:text-black rounded transition-all"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {booking.status === 'Confirmed' && (
-                          <button
-                            onClick={() => {
-                              onUpdateBookingStatus(booking.id, 'Completed');
-                              onUpdatePaymentStatus(booking.id, 'Paid');
-                            }}
-                            title="Complete Booking"
-                            className="p-1.5 bg-blue-950/40 text-blue-400 border border-blue-500/30 hover:bg-blue-600 hover:text-white rounded transition-all"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {booking.paymentStatus === 'Unpaid' && (
-                          <button
-                            onClick={() => onUpdatePaymentStatus(booking.id, 'Paid')}
-                            title="Mark Paid"
-                            className="p-1.5 bg-amber-950/40 text-[#D4AF37] border border-[#D4AF37]/30 hover:bg-[#D4AF37] hover:text-black rounded transition-all"
-                          >
-                            <DollarSign className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {booking.status !== 'Cancelled' && booking.status !== 'Completed' && (
-                          <button
-                            onClick={() => onUpdateBookingStatus(booking.id, 'Cancelled')}
-                            title="Cancel Appointment"
-                            className="p-1.5 bg-red-950/40 text-red-400 border border-red-500/30 hover:bg-red-600 hover:text-white rounded transition-all"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => onUpdateBookingStatus(booking.id, 'Confirmed')}
+                          disabled={booking.status === 'Completed' || booking.status === 'Cancelled'}
+                          className={`px-2 py-1 text-[10px] uppercase tracking-wider font-mono rounded flex items-center gap-1 transition-all ${
+                            booking.status === 'Confirmed'
+                              ? 'bg-emerald-500 text-black font-semibold cursor-default'
+                              : 'bg-emerald-950/30 text-emerald-400 border border-emerald-500/30 hover:bg-[#10b981] hover:text-black disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-emerald-400'
+                          }`}
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Approve</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => onUpdateBookingStatus(booking.id, 'Cancelled')}
+                          disabled={booking.status === 'Completed' || booking.status === 'Cancelled'}
+                          className={`px-2 py-1 text-[10px] uppercase tracking-wider font-mono rounded flex items-center gap-1 transition-all ${
+                            booking.status === 'Cancelled'
+                              ? 'bg-red-500 text-white font-semibold cursor-default'
+                              : 'bg-red-950/30 text-red-400 border border-red-500/30 hover:bg-[#ef4444] hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-red-400'
+                          }`}
+                        >
+                          <X className="w-3 h-3" />
+                          <span>Reject</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            onUpdateBookingStatus(booking.id, 'Completed');
+                            onUpdatePaymentStatus(booking.id, 'Paid');
+                          }}
+                          disabled={booking.status === 'Completed'}
+                          className={`px-2 py-1 text-[10px] uppercase tracking-wider font-mono rounded flex items-center gap-1 transition-all ${
+                            booking.status === 'Completed'
+                              ? 'bg-blue-500 text-white font-semibold cursor-default'
+                              : 'bg-blue-950/30 text-blue-400 border border-blue-500/30 hover:bg-[#3b82f6] hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-blue-400'
+                          }`}
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                          <span>Complete</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -443,42 +444,43 @@ export default function BookingsTab({
                 </div>
 
                 {/* Mobile action row */}
-                <div className="flex gap-2 justify-end">
-                  {booking.status === 'Pending' && (
-                    <button
-                      onClick={() => onUpdateBookingStatus(booking.id, 'Confirmed')}
-                      className="text-[10px] font-mono bg-emerald-900/30 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded"
-                    >
-                      Confirm
-                    </button>
-                  )}
-                  {booking.status === 'Confirmed' && (
-                    <button
-                      onClick={() => {
-                        onUpdateBookingStatus(booking.id, 'Completed');
-                        onUpdatePaymentStatus(booking.id, 'Paid');
-                      }}
-                      className="text-[10px] font-mono bg-blue-900/30 text-blue-400 border border-blue-500/20 px-3 py-1.5 rounded"
-                    >
-                      Complete
-                    </button>
-                  )}
-                  {booking.paymentStatus === 'Unpaid' && (
-                    <button
-                      onClick={() => onUpdatePaymentStatus(booking.id, 'Paid')}
-                      className="text-[10px] font-mono bg-amber-900/30 text-[#D4AF37] border border-[#D4AF37]/20 px-3 py-1.5 rounded"
-                    >
-                      Pay Fee
-                    </button>
-                  )}
-                  {booking.status !== 'Cancelled' && booking.status !== 'Completed' && (
-                    <button
-                      onClick={() => onUpdateBookingStatus(booking.id, 'Cancelled')}
-                      className="text-[10px] font-mono bg-red-900/30 text-red-400 border border-red-500/20 px-3 py-1.5 rounded"
-                    >
-                      Cancel
-                    </button>
-                  )}
+                <div className="flex gap-2 justify-end flex-wrap">
+                  <button
+                    onClick={() => onUpdateBookingStatus(booking.id, 'Confirmed')}
+                    disabled={booking.status === 'Completed' || booking.status === 'Cancelled'}
+                    className={`text-[10px] font-mono px-2.5 py-1.5 rounded transition-all ${
+                      booking.status === 'Confirmed'
+                        ? 'bg-emerald-500 text-black font-semibold'
+                        : 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/20 disabled:opacity-30'
+                    }`}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => onUpdateBookingStatus(booking.id, 'Cancelled')}
+                    disabled={booking.status === 'Completed' || booking.status === 'Cancelled'}
+                    className={`text-[10px] font-mono px-2.5 py-1.5 rounded transition-all ${
+                      booking.status === 'Cancelled'
+                        ? 'bg-red-500 text-white font-semibold'
+                        : 'bg-red-900/30 text-red-400 border border-red-500/20 disabled:opacity-30'
+                    }`}
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => {
+                      onUpdateBookingStatus(booking.id, 'Completed');
+                      onUpdatePaymentStatus(booking.id, 'Paid');
+                    }}
+                    disabled={booking.status === 'Completed'}
+                    className={`text-[10px] font-mono px-2.5 py-1.5 rounded transition-all ${
+                      booking.status === 'Completed'
+                        ? 'bg-blue-500 text-white font-semibold'
+                        : 'bg-blue-900/30 text-blue-400 border border-blue-500/20 disabled:opacity-30'
+                    }`}
+                  >
+                    Complete
+                  </button>
                 </div>
               </div>
             ))
