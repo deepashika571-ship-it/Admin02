@@ -1,0 +1,6 @@
+{
+  "name": "Aura Luxe Admin Dashboard",
+  "description": "Luxurious, high-end admin portal for Aura Luxe Beauty Studio featuring admin login, client lists, booking management, payment status, coupon codes, review moderation, and interactive analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
